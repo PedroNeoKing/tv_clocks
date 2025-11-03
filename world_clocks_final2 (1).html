@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Clocks – Telão</title>
+  <style>
+    :root { --fg:#fff; --muted:#c7c7c7; --bg:#000; --divider:#444; }
+    *{ box-sizing: border-box; }
+    html, body { height: 100%; width:100%; }
+    body{
+      margin:0; padding: 12px clamp(12px, 3vw, 28px) 28px;
+      background: var(--bg); color: var(--fg);
+      font-family: Arial, Helvetica, sans-serif;
+      display:flex; flex-direction: column; align-items: center;
+      gap: 0;
+      min-height: 100svh;
+    }
+    /* ===== Toolbar ===== */
+    .toolbar{
+      width:100%;
+      display:flex; flex-wrap: wrap; gap: 10px;
+      align-items:center; justify-content:center;
+      position: sticky; top:0; z-index: 10;
+      padding: 8px 10px;
+      background: rgba(18,18,18,.6);
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+      transition: opacity .25s ease, transform .25s ease;
+      margin-bottom: clamp(12px, 2.2vw, 22px);
+    }
+    body.idle .toolbar{
+      opacity: 0;
+      transform: translateY(-14px);
+      pointer-events: none;
+    }
+    .toolbar label{ color:var(--muted); font-size: clamp(12px, 1.6vw, 14px); }
+    select, button{
+      background:#121212; color:var(--fg); border:1px solid #2a2a2a; border-radius:10px;
+      padding:10px 12px; font-size: clamp(12px, 1.6vw, 14px);
+    }
+    button{ cursor:pointer }
+    #fs{ font-weight:600 }
+    /* ===== Content area ===== */
+    .grid{
+      width:100%;
+      margin-block: auto; /* centraliza verticalmente entre topo e rodapé */
+      display:flex; flex-direction: column; align-items: stretch; gap: clamp(10px, 2vw, 16px);
+    }
+    .centerRow{
+      width:100%;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .mini-clock{
+      display:inline-flex; flex-direction: column; align-items:center; justify-content:center;
+      padding: 6px 10px;
+      border-radius: 10px;
+      text-align:center;
+      opacity: .95;
+    }
+    .mini-clock .city{
+      display:flex; align-items:center; justify-content:center;
+      gap: 8px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .mini-clock .flag{
+      width: 40px; height:auto; border-radius: 4px; object-fit: cover;
+    }
+    .mini-clock .name{ font-size: clamp(.9rem, 2vw, 1.1rem); }
+    .mini-clock .time{
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+      font-size: clamp(1.6rem, 4.8vw, 2.6rem);
+      line-height: 1.05;
+      white-space: nowrap;
+    }
+
+    .row{
+      width:100%;
+      display:flex; flex-wrap: wrap;
+      justify-content:center; gap: clamp(14px, 2.4vw, 22px);
+    }
+    .clock{
+      flex: 1 1 clamp(260px, 28vw, 360px);
+      max-width: 520px;
+      min-width: 240px;
+      padding: clamp(8px, 1.8vw, 14px);
+      border-radius: 12px;
+      text-align:center;
+    }
+    .city{
+      display:flex; align-items:center; justify-content:center;
+      gap: clamp(8px, 1.6vw, 12px);
+      margin-bottom: clamp(6px, 1.6vw, 10px);
+      color: var(--muted);
+      line-height: 1.2;
+      text-wrap: balance;
+    }
+    .city .flag{
+      flex: 0 0 auto;
+      width: clamp(48px, 5vw, 96px);
+      height: auto;
+      border-radius: 4px;
+      object-fit: cover;
+    }
+    .city .name{
+      font-size: clamp(1rem, 2.4vw, 1.6rem);
+      max-width: 100%;
+    }
+    .time{
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+      font-size: clamp(2.2rem, 7vw, 6rem);
+      line-height: 1.05;
+      white-space: nowrap;
+    }
+    .divider{
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--divider), transparent);
+      margin: clamp(6px, 1.8vw, 12px) 0;
+    }
+    @media (max-width: 820px){
+      .clock{ flex-basis: clamp(260px, 44vw, 340px); }
+    }
+    /* ===== Fullscreen: maximize content and hide toolbar/divider ===== */
+    body.is-fullscreen{ padding: clamp(6px, 1vw, 14px); }
+    body.is-fullscreen .toolbar{ display:none; }
+    body.is-fullscreen .row{ gap: clamp(10px, 1.5vw, 18px); }
+    body.is-fullscreen .clock{ flex: 1 1 clamp(280px, 22vw, 640px); max-width: none; padding: clamp(10px, 1.2vw, 22px); }
+    body.is-fullscreen .city .name{ font-size: clamp(1.1rem, 2.2vw, 1.8rem); }
+    body.is-fullscreen .time{ font-size: clamp(2.6rem, 8vw, 7rem); }
+
+    .date{
+      font-size: clamp(0.9rem, 2vw, 1.2rem);
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <label for="profile">Perfil:</label>
+    <select id="profile">
+      <option value="principal">Principal (Dubai, Tema, Alemanha, México, EUA, China)</option>
+      <option value="americas">Américas</option>
+      <option value="africa">África</option>
+      <option value="me">Oriente Médio</option>
+      <option value="europe">Europa</option>
+      <option value="easteu">Leste Europeu</option>
+      <option value="asia">Ásia</option>
+    </select>
+    <button id="prev">◀ Anterior</button>
+    <button id="next">Próximo ▶</button>
+    <button id="fs" title="Alternar tela cheia">⛶ Tela cheia</button>
+  </div>
+
+  <div class="grid" id="grid">
+    <!-- Mini relógio central (exibido só no perfil Principal) -->
+    <div class="centerRow"><div id="miniClock" class="mini-clock" hidden>
+      <div class="city"><img class="flag" alt="Bandeira do Brasil"/><span class="name">Brasil (São Paulo)</span></div>
+      <div class="time">--:--</div><div class="date"></div><div class="date"></div>
+    </div></div>
+
+    <div class="row" id="rowTop"></div>
+    <div class="divider"></div>
+    <div class="row" id="rowBottom"></div>
+  </div>
+
+  <script>
+    // Bandeiras com srcset 2x para telas de alta densidade
+    const FLAGSRC = (code) => ({
+      src: `https://flagcdn.com/w80/${code}.png`,
+      srcset: `https://flagcdn.com/w160/${code}.png 2x`
+    });
+
+    // ===== Perfis reorganizados =====
+    const PROFILES = {
+      principal: [
+        { id:'dubai',    label:'Dubai (UAE)',          tz:'Asia/Dubai',                    flag:'ae' },
+        { id:'tema',     label:'Tema (Ghana)',         tz:'Africa/Accra',                  flag:'gh' },
+        { id:'berlin',   label:'Berlin (Germany)',     tz:'Europe/Berlin',                 flag:'de' },
+        { id:'mexico',   label:'Mexico City (Mexico)', tz:'America/Mexico_City',           flag:'mx' },
+        { id:'newyork',  label:'New York (USA)',       tz:'America/New_York',              flag:'us' },
+        { id:'shanghai', label:'Shanghai (China)',     tz:'Asia/Shanghai',                 flag:'cn' }
+      ],
+      americas: [
+        { id:'saopaulo',   label:'São Paulo (Brazil)',       tz:'America/Sao_Paulo',       flag:'br' },
+        { id:'newyork',    label:'New York (USA)',           tz:'America/New_York',        flag:'us' },
+        { id:'mexico',     label:'Mexico City (Mexico)',     tz:'America/Mexico_City',     flag:'mx' },
+        { id:'panama',     label:'Panama City (Panama)',     tz:'America/Panama',          flag:'pa' },
+        { id:'buenosaires',label:'Buenos Aires (Argentina)', tz:'America/Argentina/Buenos_Aires', flag:'ar' },
+        { id:'losangeles', label:'Los Angeles (USA)',        tz:'America/Los_Angeles',     flag:'us' }
+      ],
+      africa: [
+        { id:'accra',      label:'Accra (Ghana)',            tz:'Africa/Accra',            flag:'gh' },
+        { id:'berlin',     label:'Berlin (Germany)',         tz:'Europe/Berlin',           flag:'de' },
+        { id:'lagos',      label:'Lagos (Nigeria)',          tz:'Africa/Lagos',            flag:'ng' },
+        { id:'jhb',        label:'Johannesburg (South Africa)', tz:'Africa/Johannesburg',  flag:'za' },
+        { id:'nairobi',    label:'Nairobi (Kenya)',          tz:'Africa/Nairobi',          flag:'ke' }
+      ],
+      me: [
+        { id:'dubai',    label:'Dubai (UAE)',    tz:'Asia/Dubai',   flag:'ae' },
+        { id:'istanbul', label:'Istanbul (Turkey)', tz:'Europe/Istanbul', flag:'tr' },
+        { id:'riyadh',   label:'Riyadh (Saudi Arabia)', tz:'Asia/Riyadh', flag:'sa' },
+        { id:'muscat',   label:'Muscat (Oman)',  tz:'Asia/Muscat',  flag:'om' },
+        { id:'kuwait',   label:'Kuwait City (Kuwait)', tz:'Asia/Kuwait', flag:'kw' }
+      ],
+      europe: [
+        { id:'lisbon',  label:'Lisbon (Portugal)', tz:'Europe/Lisbon',  flag:'pt' },
+        { id:'london',  label:'London (UK)',       tz:'Europe/London',  flag:'gb' },
+        { id:'madrid',  label:'Madrid (Spain)',    tz:'Europe/Madrid',  flag:'es' },
+        { id:'paris',   label:'Paris (France)',    tz:'Europe/Paris',   flag:'fr' },
+        { id:'berlin',  label:'Berlin (Germany)',  tz:'Europe/Berlin',  flag:'de' }
+      ],
+      easteu: [
+        { id:'warsaw',   label:'Warsaw (Poland)',    tz:'Europe/Warsaw',    flag:'pl' },
+        { id:'prague',   label:'Prague (Czechia)',   tz:'Europe/Prague',    flag:'cz' },
+        { id:'moscow',   label:'Moscow (Russia)',    tz:'Europe/Moscow',    flag:'ru' },
+        { id:'vladivostok',label:'Vladivostok (Russia)', tz:'Asia/Vladivostok', flag:'ru' },
+        { id:'kyiv',     label:'Kyiv (Ukraine)',     tz:'Europe/Kyiv',      flag:'ua' }
+      ],
+      asia: [
+        { id:'manila', label:'Manila (Philippines)',  tz:'Asia/Manila',  flag:'ph' },
+        { id:'hongkong', label:'Hong Kong (China)',    tz:'Asia/Hong_Kong', flag:'hk' },
+        { id:'tokyo',    label:'Tokyo (Japan)',        tz:'Asia/Tokyo',     flag:'jp' },
+        { id:'singapore',label:'Singapore (Singapore)',tz:'Asia/Singapore', flag:'sg' },
+        { id:'delhi', label:'New Delhi (India)', tz:'Asia/Kolkata', flag:'in' },
+        { id:'sydney',   label:'Sydney (Australia)',   tz:'Australia/Sydney', flag:'au' }
+      ]
+    };
+
+    const order = ['principal','americas','africa','me','europe','easteu','asia'];
+    const profileSelect = document.getElementById('profile');
+    const rowTop = document.getElementById('rowTop');
+    const rowBottom = document.getElementById('rowBottom');
+    const miniClock = document.getElementById('miniClock');
+
+    function createClock(el){
+      const wrap = document.createElement('div');
+      wrap.className = 'clock';
+      wrap.innerHTML = `
+        <div class="city"><img class="flag" alt="flag"/> <span class="name"></span></div>
+        <div class="time">--:--</div><div class="date"></div><div class="date"></div>
+      `;
+      el.appendChild(wrap);
+      return wrap;
+    }
+
+    function renderProfile(key){
+      const cities = PROFILES[key] || PROFILES.principal;
+      rowTop.innerHTML = ''; rowBottom.innerHTML='';
+      cities.slice(0,3).forEach(c => addClock(rowTop, c));
+      cities.slice(3).forEach(c => addClock(rowBottom, c));
+      localStorage.setItem('wc_profile', key);
+      renderMini(key);
+    }
+
+    function addClock(container, cfg){
+      const node = createClock(container);
+      node.dataset.tz = cfg.tz;
+      node.querySelector('.name').textContent = cfg.label;
+      const img = node.querySelector('.flag');
+      const {src, srcset} = FLAGSRC(cfg.flag);
+      img.src = src; img.srcset = srcset; img.alt = cfg.label + ' flag';
+    }
+
+    // Mini relógio do Brasil (centro, acima da fileira superior) - só no perfil "principal"
+    function renderMini(key){
+      if(key !== 'principal'){
+        miniClock.hidden = true;
+        miniClock.removeAttribute('data-tz');
+        return;
+      }
+      miniClock.hidden = false;
+      miniClock.dataset.tz = 'America/Sao_Paulo';
+      const img = miniClock.querySelector('.flag');
+      const {src, srcset} = FLAGSRC('br');
+      img.src = src; img.srcset = srcset; img.alt = 'Brasil';
+      miniClock.querySelector('.name').textContent = 'Brasil (São Paulo)';
+    }
+
+    function tick(){
+      // Atualiza todos relógios sem segundos
+      document.querySelectorAll('[data-tz]').forEach(node => {
+        const tz = node.dataset.tz; if(!tz) return;
+        const t = new Intl.DateTimeFormat('en-GB', {
+          timeZone: tz, hour12:false, hour:'2-digit', minute:'2-digit'
+        }).format(new Date());
+        node.querySelector('.time').textContent = t;
+        const d = new Intl.DateTimeFormat('pt-BR', {
+          timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric'
+        }).format(new Date());
+        const dateNode = node.querySelector('.date');
+        if(dateNode) dateNode.textContent = d;
+      });
+    }
+
+    // ===== Fullscreen helpers =====
+    function isBrowserFullscreen(){
+      const tol = 2; // px tolerance for taskbar, etc.
+      return Math.abs(window.innerHeight - screen.height) <= tol && Math.abs(window.innerWidth - screen.width) <= tol;
+    }
+    function syncFSClass(){
+      const isFS = !!document.fullscreenElement || isBrowserFullscreen();
+      document.body.classList.toggle('is-fullscreen', isFS);
+      if(isFS){
+        clearIdle();
+        document.body.classList.remove('idle');
+      } else {
+        scheduleIdle();
+      }
+    }
+    document.addEventListener('fullscreenchange', syncFSClass);
+    window.addEventListener('resize', syncFSClass);
+    window.addEventListener('load', syncFSClass);
+
+    // ===== Idle auto-hide for toolbar (outside fullscreen) =====
+    const IDLE_MS = 4000;
+    let idleTimer = null;
+    function clearIdle(){ if(idleTimer){ clearTimeout(idleTimer); idleTimer = null; } }
+    function scheduleIdle(){
+      clearIdle();
+      document.body.classList.remove('idle');
+      if(!document.body.classList.contains('is-fullscreen')){
+        idleTimer = setTimeout(()=> document.body.classList.add('idle'), IDLE_MS);
+      }
+    }
+    ['mousemove','keydown','touchstart'].forEach(ev => window.addEventListener(ev, scheduleIdle, { passive: true }));
+    window.addEventListener('load', scheduleIdle);
+
+    // ===== Hotkeys =====
+    window.addEventListener('keydown', (e)=>{
+      if(e.key.toLowerCase() === 'f'){
+        e.preventDefault();
+        if(!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); }
+        else { document.exitFullscreen?.(); }
+      }
+      if(e.key === 'ArrowLeft'){ document.getElementById('prev').click(); }
+      if(e.key === 'ArrowRight'){ document.getElementById('next').click(); }
+    });
+
+    const saved = localStorage.getItem('wc_profile');
+    if(saved && PROFILES[saved]) profileSelect.value = saved;
+    else profileSelect.value = 'principal';
+    renderProfile(profileSelect.value);
+    setInterval(tick, 1000); tick();
+
+    profileSelect.addEventListener('change', e => renderProfile(e.target.value));
+    document.getElementById('prev').addEventListener('click', () => {
+      const i = order.indexOf(profileSelect.value);
+      const next = (i - 1 + order.length) % order.length;
+      profileSelect.value = order[next]; renderProfile(order[next]);
+    });
+    document.getElementById('next').addEventListener('click', () => {
+      const i = order.indexOf(profileSelect.value);
+      const next = (i + 1) % order.length;
+      profileSelect.value = order[next]; renderProfile(order[next]);
+    });
+    document.getElementById('fs').addEventListener('click', () => {
+      if(!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); }
+      else { document.exitFullscreen?.(); }
+    });
+  </script>
+</body>
+</html>
